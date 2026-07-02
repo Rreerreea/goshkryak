@@ -1,0 +1,341 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <title>ГОШКРЯК — ASCII art</title>
+    <meta name="description" content="ГОШКРЯК — ASCII-редактор. Без логина и водяных знаков." />
+    <meta name="robots" content="noindex, nofollow" />
+    <meta name="theme-color" content="#0a0a0a" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+
+    <script>
+      /* =====================================================================
+         BINARY MODE — пресет «иллюстрация в стиле бинарного кода».
+         ?binary в URL → window.__GK_PRESET__ подхватывается пропатченным
+         бандлом при инициализации стейта (x.useState({...dt,...__GK_PRESET__})).
+         Настройки режима правятся здесь, бандл перепатчивать не нужно.
+         ===================================================================== */
+      (function () {
+        var q = new URLSearchParams(location.search);
+        if (!q.has("binary")) return;
+        window.__GK_BINARY__ = true;
+        window.__GK_PRESET__ = {
+          style: "dither2",
+          ditherType: "floyd-steinberg",
+          ditherStrength: 0.85,
+          colorMode: "custom",
+          customColor: "#ffffff",
+          backgroundColor: "#2b32ff",
+          charset: "binary",
+          dither2ColorNum: 2,
+          dither2PixelSize: 2,
+          dither2AnimationEnabled: false,
+          dither2MouseInteractionEnabled: false,
+          contrast: 1.1
+        };
+      })();
+    </script>
+
+    <style>
+      /* =====================================================================
+         ГОШКРЯК — restrained monospace edition
+         Только тема. Layout оригинальный (canvas слева, controls справа).
+         ===================================================================== */
+
+      :root, html, body {
+        --accent: #ffffff !important;
+        --gk-bg:    #0a0a0a;
+        --gk-bg-2:  #131313;
+        --gk-bg-3:  #1a1a1a;
+        --gk-fg:    #e8e8e8;
+        --gk-dim:   #6f6f6f;
+        --gk-mute:  #404040;
+        --gk-line:  #1c1c1c;
+        --gk-line2: #262626;
+        --gk-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+      }
+
+      html, body {
+        background: var(--gk-bg);
+        color: var(--gk-fg);
+      }
+      ::selection { background: rgba(255,255,255,0.18); color: #fff; }
+
+      /* Моноспейс на UI */
+      body, button, input, textarea, select, label,
+      .controls-panel, .controls-panel *,
+      .left-mode-buttons, .left-mode-buttons *,
+      .left-sidebar-controls, .left-sidebar-controls *,
+      .header-brand, .header-action-row, .header-action-row *,
+      .left-bottom-bar, .left-bottom-bar *,
+      .export-popover, .export-popover *,
+      .changelog-popover, .changelog-popover *,
+      .creation-item, .creation-item *,
+      .creations-header-button {
+        font-family: var(--gk-mono) !important;
+        letter-spacing: 0.01em;
+      }
+
+      /* ---- Кнопки режима над canvas ---- */
+      .left-mode-button,
+      .left-mode-icon-button,
+      .left-mode-theme-toggle {
+        background: rgba(20, 20, 20, 0.85) !important;
+        border: 1px solid var(--gk-line2) !important;
+        color: var(--gk-fg) !important;
+        border-radius: 0 !important;
+        font-family: var(--gk-mono) !important;
+        font-size: 0.66rem !important;
+        letter-spacing: 0.14em !important;
+        backdrop-filter: blur(8px);
+      }
+      .left-mode-button:hover,
+      .left-mode-icon-button:hover {
+        border-color: var(--gk-fg) !important;
+      }
+      .left-mode-button.active,
+      .left-mode-icon-button.active {
+        background: var(--gk-fg) !important;
+        color: var(--gk-bg) !important;
+        border-color: var(--gk-fg) !important;
+      }
+      .left-mode-device-group {
+        border: 1px solid var(--gk-line2) !important;
+        background: rgba(20, 20, 20, 0.85) !important;
+      }
+
+      /* ---- Sidebar controls (top-right) ---- */
+      .left-sidebar-controls > * { border-radius: 0 !important; }
+      .left-sidebar-publish {
+        position: relative !important;
+        background: rgba(20, 20, 20, 0.85) !important;
+        border: 1px solid var(--gk-line2) !important;
+        color: var(--gk-dim) !important;
+        text-shadow: none !important;
+        opacity: 0.85 !important;
+        cursor: not-allowed !important;
+        pointer-events: none !important;
+      }
+      .left-sidebar-publish::after {
+        content: "off";
+        margin-left: 0.5em;
+        font-size: 0.6em;
+        letter-spacing: 0.14em;
+        color: var(--gk-mute);
+        text-transform: uppercase;
+      }
+
+      /* ---- Settings panel ---- */
+      .controls-wrap {
+        background: var(--gk-bg) !important;
+        border-left: 1px solid var(--gk-line2) !important;
+      }
+      .controls-panel {
+        border: none !important;
+        padding: 1.25rem 1.5rem !important;
+        gap: 0.55rem !important;
+        background: transparent !important;
+      }
+      .controls-panel .control-section,
+      .controls-panel .control-section-separated {
+        padding: 0.65rem 0 !important;
+        border-bottom: 1px solid var(--gk-line) !important;
+      }
+      .controls-panel .control-label,
+      .controls-panel .control-row-head {
+        color: var(--gk-dim) !important;
+        font-size: 0.62rem !important;
+        text-transform: uppercase !important;
+        letter-spacing: 0.18em !important;
+        font-weight: 500 !important;
+      }
+      .control-value,
+      .control-text,
+      .control-textarea,
+      .control-select {
+        color: var(--gk-fg) !important;
+        background: var(--gk-bg-2) !important;
+        border: 1px solid var(--gk-line2) !important;
+        border-radius: 0 !important;
+        font-family: var(--gk-mono) !important;
+      }
+      .control-text:focus,
+      .control-textarea:focus,
+      .control-select:focus {
+        outline: none !important;
+        border-color: var(--gk-fg) !important;
+      }
+
+      /* ---- Source / upload — НЕ трогаем .upload-input ---- */
+      .upload-head .label {
+        color: var(--gk-fg) !important;
+        font-size: 0.7rem !important;
+        text-transform: uppercase !important;
+        letter-spacing: 0.18em !important;
+      }
+      .upload-controls-row { gap: 0.4rem !important; }
+      .source-mode-button {
+        background: var(--gk-bg-2) !important;
+        color: var(--gk-fg) !important;
+        border: 1px solid var(--gk-line2) !important;
+        border-radius: 0 !important;
+        font-family: var(--gk-mono) !important;
+        font-size: 0.66rem !important;
+        letter-spacing: 0.14em !important;
+        text-transform: uppercase !important;
+        padding: 0.5rem 0.85rem !important;
+      }
+      .source-mode-button.is-active {
+        background: var(--gk-fg) !important;
+        color: var(--gk-bg) !important;
+        border-color: var(--gk-fg) !important;
+      }
+      .upload-dropzone {
+        border: 1px dashed var(--gk-line2) !important;
+        border-radius: 0 !important;
+        background: var(--gk-bg) !important;
+        min-height: 110px !important;
+        padding: 1.2rem 1rem !important;
+        cursor: pointer !important;
+        transition: border-color 0.15s ease;
+      }
+      .upload-dropzone:hover { border-color: var(--gk-fg) !important; }
+      .upload-dropzone.is-drag-active {
+        border-color: var(--gk-fg) !important;
+        border-style: solid !important;
+      }
+      .upload-hint {
+        color: var(--gk-dim) !important;
+        font-size: 0.62rem !important;
+        letter-spacing: 0.06em !important;
+      }
+      .camera-device-empty {
+        color: var(--gk-dim) !important;
+        text-align: center;
+      }
+
+      /* ---- Header / branding ---- */
+      .header-pro-badge {
+        background: transparent !important;
+        color: var(--gk-fg) !important;
+        border: 1px solid var(--gk-line2) !important;
+        border-radius: 0 !important;
+        text-shadow: none !important;
+        box-shadow: none !important;
+        font-family: var(--gk-mono) !important;
+        font-weight: 700 !important;
+        letter-spacing: 0.18em !important;
+        animation: none !important;
+        padding: 0 6px !important;
+      }
+      .changelog-link-upgrade {
+        color: var(--gk-fg) !important;
+        text-shadow: none !important;
+        font-weight: 500 !important;
+        letter-spacing: 0.06em !important;
+      }
+      .header-action-row { gap: 8px; }
+      .header-legal-link { color: var(--gk-dim) !important; }
+      .header-legal-link:hover { color: var(--gk-fg) !important; }
+
+      .save-status { color: var(--gk-dim) !important; }
+      .save-status::before { content: ""; }
+
+      /* ---- Export popover ---- */
+      .export-popover {
+        border: 1px solid var(--gk-line2) !important;
+        border-radius: 0 !important;
+        background: var(--gk-bg) !important;
+        box-shadow: 0 16px 48px rgba(0, 0, 0, 0.7) !important;
+      }
+      .export-popover-head,
+      .export-popover-head > * {
+        color: var(--gk-fg) !important;
+        text-shadow: none !important;
+        font-family: var(--gk-mono) !important;
+        letter-spacing: 0.18em !important;
+        text-transform: uppercase !important;
+      }
+      .export-popover-disclaimer,
+      .export-popover-note {
+        border-left: 1px solid var(--gk-line2) !important;
+        padding-left: 10px !important;
+        color: var(--gk-dim) !important;
+      }
+      .export-code-block,
+      .export-code-block-compact,
+      .export-code-block-compact-html {
+        border: 1px solid var(--gk-line) !important;
+        border-radius: 0 !important;
+        background: var(--gk-bg-2) !important;
+      }
+
+      /* ---- Скроллбары ---- */
+      .controls-panel::-webkit-scrollbar { width: 6px; }
+      .controls-panel::-webkit-scrollbar-track { background: transparent; }
+      .controls-panel::-webkit-scrollbar-thumb { background: var(--gk-line2); }
+      .controls-panel::-webkit-scrollbar-thumb:hover { background: var(--gk-dim); }
+
+      /* ---- BINARY MODE кнопка в хедере ---- */
+      .gk-binary-btn {
+        display: inline-flex;
+        align-items: center;
+        padding: 3px 9px;
+        border: 1px solid var(--gk-line2);
+        color: var(--gk-fg);
+        font-family: var(--gk-mono) !important;
+        font-size: 0.62rem;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        text-decoration: none;
+        cursor: pointer;
+        white-space: nowrap;
+      }
+      .gk-binary-btn:hover { border-color: var(--gk-fg); }
+      .gk-binary-btn.gk-active {
+        background: #2b32ff;
+        border-color: #2b32ff;
+        color: #ffffff;
+      }
+    </style>
+
+    <script>
+      /* Инжект кнопки [ BINARY ] в шапку. SPA перерисовывает хедер —
+         observer живёт постоянно и довставляет кнопку, если её выкинуло. */
+      (function () {
+        function inject() {
+          var row = document.querySelector(".header-action-row");
+          if (!row || row.querySelector(".gk-binary-btn")) return;
+          var a = document.createElement("a");
+          a.className = "gk-binary-btn" + (window.__GK_BINARY__ ? " gk-active" : "");
+          a.textContent = window.__GK_BINARY__ ? "binary: on" : "binary";
+          /* pathname вместо "/" — работает и локально, и под /goshkryak/ на Pages */
+          a.href = window.__GK_BINARY__ ? location.pathname : location.pathname + "?binary";
+          a.title = "Иллюстрация в стиле бинарного кода (dither, белое на синем)";
+          row.insertBefore(a, row.firstChild);
+        }
+        new MutationObserver(inject).observe(document.documentElement, {
+          childList: true,
+          subtree: true
+        });
+        document.addEventListener("DOMContentLoaded", inject);
+      })();
+    </script>
+
+    <link rel="icon" type="image/svg+xml" href="/goshkryak/favicon-light.svg" media="(prefers-color-scheme: light)" />
+    <link rel="icon" type="image/svg+xml" href="/goshkryak/favicon-dark.svg" media="(prefers-color-scheme: dark)" />
+    <link rel="icon" type="image/svg+xml" href="/goshkryak/favicon-light.svg" />
+    <link rel="shortcut icon" href="/goshkryak/favicon-light.svg" />
+
+    <script type="module" crossorigin src="/goshkryak/assets/index-D_r26ajq.js"></script>
+    <link rel="stylesheet" crossorigin href="/goshkryak/assets/index-CnqeKMWI.css">
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>
