@@ -315,28 +315,322 @@
         border-color: #2b32ff;
         color: #ffffff;
       }
+
+      /* ---- TEXT-панель (наложение текста) ---- */
+      .gk-text-panel {
+        position: fixed;
+        top: 4.2rem;
+        right: 1.2rem;
+        z-index: 40;
+        width: 288px;
+        max-width: calc(100vw - 2.4rem);
+        background: var(--gk-bg);
+        border: 1px solid var(--gk-line2);
+        padding: 14px 15px 16px;
+        font-family: var(--gk-mono) !important;
+        color: var(--gk-fg);
+        box-shadow: 0 18px 52px rgba(0, 0, 0, 0.72);
+        display: none;
+      }
+      .gk-text-panel.gk-open { display: block; }
+      .gk-tp-head {
+        display: flex; justify-content: space-between; align-items: center;
+        font-size: 0.66rem; letter-spacing: 0.18em; text-transform: uppercase;
+        color: var(--gk-fg); margin-bottom: 12px;
+      }
+      .gk-tp-close { cursor: pointer; color: var(--gk-dim); border: none; background: none; font-family: var(--gk-mono); font-size: 0.8rem; }
+      .gk-tp-close:hover { color: var(--gk-fg); }
+      .gk-tp-label {
+        display: block; font-size: 0.56rem; letter-spacing: 0.16em;
+        text-transform: uppercase; color: var(--gk-dim); margin: 11px 0 5px;
+      }
+      .gk-text-panel textarea, .gk-text-panel select, .gk-text-panel input[type="text"] {
+        width: 100%; box-sizing: border-box; background: var(--gk-bg-2);
+        color: var(--gk-fg); border: 1px solid var(--gk-line2); border-radius: 0;
+        font-family: var(--gk-mono) !important; font-size: 0.72rem; padding: 7px 8px; resize: vertical;
+      }
+      .gk-text-panel textarea:focus, .gk-text-panel select:focus, .gk-text-panel input:focus { outline: none; border-color: var(--gk-fg); }
+      .gk-tp-row { display: flex; gap: 7px; }
+      .gk-tp-row > * { flex: 1; }
+      .gk-seg { display: flex; border: 1px solid var(--gk-line2); }
+      .gk-seg button {
+        flex: 1; background: var(--gk-bg-2); color: var(--gk-fg); border: none;
+        border-right: 1px solid var(--gk-line2); padding: 7px 4px; cursor: pointer;
+        font-family: var(--gk-mono) !important; font-size: 0.58rem; letter-spacing: 0.1em; text-transform: uppercase;
+      }
+      .gk-seg button:last-child { border-right: none; }
+      .gk-seg button.gk-on { background: var(--gk-fg); color: var(--gk-bg); }
+      .gk-tp-apply {
+        width: 100%; margin-top: 14px; background: var(--gk-fg); color: var(--gk-bg);
+        border: none; padding: 10px; cursor: pointer; font-family: var(--gk-mono) !important;
+        font-size: 0.64rem; letter-spacing: 0.16em; text-transform: uppercase; font-weight: 700;
+      }
+      .gk-tp-apply:hover { background: #ffffff; }
+      .gk-tp-hint { margin-top: 10px; font-size: 0.54rem; line-height: 1.5; color: var(--gk-mute); letter-spacing: 0.04em; }
+      .gk-tp-status { margin-top: 8px; font-size: 0.56rem; color: var(--gk-dim); min-height: 0.8em; }
+      .gk-range { width: 100%; accent-color: var(--gk-fg); }
+
+      /* Живой оверлей текста поверх превью */
+      .gk-text-overlay {
+        position: absolute; inset: 0; z-index: 5; pointer-events: none;
+        display: flex; padding: 6% 5%; box-sizing: border-box;
+        font-family: "Helvetica Neue", Arial, sans-serif; font-weight: 700;
+        text-align: center; white-space: pre-wrap; line-height: 1.1;
+      }
+      .gk-text-overlay.gk-pos-top { align-items: flex-start; justify-content: center; }
+      .gk-text-overlay.gk-pos-center { align-items: center; justify-content: center; }
+      .gk-text-overlay.gk-pos-bottom { align-items: flex-end; justify-content: center; }
+
+      /* Подсказка горячих клавиш */
+      .gk-hotkey-hint {
+        position: fixed; left: 1.2rem; bottom: 1.2rem; z-index: 30;
+        font-family: var(--gk-mono) !important; font-size: 0.54rem; letter-spacing: 0.08em;
+        color: var(--gk-mute); pointer-events: none; user-select: none;
+      }
+      .gk-hotkey-hint b { color: var(--gk-dim); font-weight: 700; }
     </style>
 
     <script>
-      /* Инжект кнопки [ BINARY ] в шапку. SPA перерисовывает хедер —
-         observer живёт постоянно и довставляет кнопку, если её выкинуло. */
+      /* =====================================================================
+         ГОШКРЯК — расширения поверх React-приложения (бандл не трогаем):
+         • кнопка BINARY (пресет ?binary)
+         • кнопка/панель TEXT — наложение текста двумя способами:
+             «в стиле» = текст впечатывается в картинку до дизера → цифры;
+             «поверх»  = текст накладывается на готовый ASCII (превью + PNG).
+         • горячие клавиши B / T / R / E
+         ===================================================================== */
       (function () {
+        var LS = "gk-text-opts";
+        var opts = loadOpts();
+
+        function loadOpts() {
+          try { return Object.assign(base(), JSON.parse(localStorage.getItem(LS) || "{}")); }
+          catch (e) { return base(); }
+        }
+        function base() {
+          return { text: "", mode: "style", pos: "center", sizePct: 14, color: "#ffffff", stroke: true };
+        }
+        function saveOpts() { try { localStorage.setItem(LS, JSON.stringify(opts)); } catch (e) {} }
+
+        /* ---- запомнить последний загруженный файл (для режима «в стиле») ---- */
+        window.__GK_LAST_FILE__ = window.__GK_LAST_FILE__ || null;
+        document.addEventListener("change", function (e) {
+          var t = e.target;
+          if (t && t.classList && t.classList.contains("upload-input") && t.files && t.files[0]) {
+            if (/^image\//.test(t.files[0].type)) window.__GK_LAST_FILE__ = t.files[0];
+          }
+        }, true);
+
+        function feedFile(file) {
+          var input = document.querySelector(".upload-input");
+          if (!input) return false;
+          var dt = new DataTransfer();
+          dt.items.add(file);
+          input.files = dt.files;
+          input.dispatchEvent(new Event("change", { bubbles: true }));
+          return true;
+        }
+        function loadImg(file) {
+          return new Promise(function (res, rej) {
+            var u = URL.createObjectURL(file), im = new Image();
+            im.onload = function () { URL.revokeObjectURL(u); res(im); };
+            im.onerror = function () { URL.revokeObjectURL(u); rej(new Error("img")); };
+            im.src = u;
+          });
+        }
+        function drawText(ctx, w, h) {
+          var lines = String(opts.text || "").split("\n");
+          if (!lines.join("")) return;
+          var size = Math.max(8, Math.round(h * opts.sizePct / 100));
+          var lh = size * 1.16;
+          ctx.font = '700 ' + size + 'px "Helvetica Neue", Helvetica, Arial, sans-serif';
+          ctx.textAlign = "center"; ctx.textBaseline = "middle";
+          var block = lh * (lines.length - 1);
+          var y = opts.pos === "top" ? h * 0.13 + size / 2
+                : opts.pos === "bottom" ? h * 0.87 - block - size / 2
+                : h / 2 - block / 2;
+          ctx.lineJoin = "round";
+          ctx.lineWidth = Math.max(2, size * 0.16);
+          ctx.strokeStyle = opts.color === "#ffffff" ? "#000000" : "#ffffff";
+          for (var i = 0; i < lines.length; i++) {
+            var ly = y + lh * i;
+            if (opts.stroke) ctx.strokeText(lines[i], w / 2, ly);
+            ctx.fillStyle = opts.color; ctx.fillText(lines[i], w / 2, ly);
+          }
+        }
+
+        /* ---- «в стиле»: текст в картинку → переподать в загрузчик → дизер ---- */
+        function applyStyle(status) {
+          var f = window.__GK_LAST_FILE__;
+          if (!f) { status("Сначала загрузи картинку в SOURCE"); return; }
+          if (!String(opts.text || "").trim()) { status("Введи текст"); return; }
+          status("Впечатываю текст…");
+          loadImg(f).then(function (im) {
+            var cap = 2200, w = im.naturalWidth, h = im.naturalHeight;
+            var sc = Math.min(1, cap / Math.max(w, h)); w = Math.round(w * sc); h = Math.round(h * sc);
+            var c = document.createElement("canvas"); c.width = w; c.height = h;
+            var ctx = c.getContext("2d");
+            ctx.drawImage(im, 0, 0, w, h);
+            drawText(ctx, w, h);
+            c.toBlob(function (b) {
+              if (b && feedFile(new File([b], "gk-text.png", { type: "image/png" }))) status("Готово — текст пойдёт в цифры");
+              else status("Не вышло переподать файл");
+            }, "image/png");
+          }).catch(function () { status("Не смог прочитать картинку"); });
+        }
+
+        /* ---- «поверх»: живой оверлей в превью + скачать PNG с текстом ---- */
+        function overlayEl() { return document.querySelector(".gk-text-overlay"); }
+        function refreshOverlay() {
+          var stage = document.querySelector(".ascii-renderer-stage");
+          if (!stage) return;
+          var ov = overlayEl();
+          var show = opts.mode === "overlay" && String(opts.text || "").trim();
+          if (!show) { if (ov) ov.remove(); return; }
+          if (!ov) { ov = document.createElement("div"); ov.className = "gk-text-overlay"; stage.appendChild(ov); }
+          if (getComputedStyle(stage).position === "static") stage.style.position = "relative";
+          ov.className = "gk-text-overlay gk-pos-" + opts.pos;
+          ov.textContent = opts.text;
+          ov.style.color = opts.color;
+          ov.style.fontSize = "min(" + opts.sizePct + "vh, " + (opts.sizePct * 1.1) + "vw)";
+          ov.style.textShadow = opts.stroke
+            ? (opts.color === "#ffffff" ? "0 0 6px #000,0 0 2px #000" : "0 0 6px #fff,0 0 2px #fff") : "none";
+        }
+        function applyOverlay(status) {
+          if (!String(opts.text || "").trim()) { status("Введи текст"); return; }
+          var stage = document.querySelector(".ascii-renderer-stage");
+          var cv = stage && stage.querySelector("canvas");
+          if (!cv || !cv.width) { status("Нет превью — загрузи картинку"); return; }
+          var c = document.createElement("canvas"); c.width = cv.width; c.height = cv.height;
+          var ctx = c.getContext("2d");
+          var bg = getComputedStyle(stage).backgroundColor;
+          if (bg && bg !== "rgba(0, 0, 0, 0)" && bg !== "transparent") { ctx.fillStyle = bg; ctx.fillRect(0, 0, c.width, c.height); }
+          ctx.drawImage(cv, 0, 0);
+          drawText(ctx, c.width, c.height);
+          c.toBlob(function (b) {
+            if (!b) { status("Не вышло собрать PNG"); return; }
+            var a = document.createElement("a"); a.href = URL.createObjectURL(b);
+            a.download = "gk-overlay.png"; document.body.appendChild(a); a.click(); a.remove();
+            setTimeout(function () { URL.revokeObjectURL(a.href); }, 1500);
+            status("PNG с текстом скачан");
+          }, "image/png");
+        }
+
+        /* ---- панель ---- */
+        var panel = null;
+        function buildPanel() {
+          if (panel) return panel;
+          panel = document.createElement("div");
+          panel.className = "gk-text-panel";
+          panel.innerHTML =
+            '<div class="gk-tp-head"><span>Текст поверх</span><button class="gk-tp-close" title="Закрыть (T)">✕</button></div>' +
+            '<div class="gk-seg" data-k="mode"><button data-v="style">В стиле · цифры</button><button data-v="overlay">Поверх</button></div>' +
+            '<label class="gk-tp-label">Текст</label>' +
+            '<textarea rows="2" data-k="text" placeholder="POWER OF THE&#10;CALENDAR"></textarea>' +
+            '<div class="gk-tp-row"><div><label class="gk-tp-label">Позиция</label>' +
+              '<select data-k="pos"><option value="top">Сверху</option><option value="center">Центр</option><option value="bottom">Снизу</option></select></div>' +
+              '<div><label class="gk-tp-label">Цвет</label>' +
+              '<div class="gk-seg" data-k="color"><button data-v="#ffffff">Бел</button><button data-v="#000000">Чёрн</button></div></div></div>' +
+            '<label class="gk-tp-label">Размер · <span class="gk-sz">14</span>%</label>' +
+            '<input class="gk-range" type="range" min="5" max="40" data-k="sizePct">' +
+            '<label class="gk-tp-label" style="display:flex;align-items:center;gap:7px;text-transform:none;letter-spacing:0"><input type="checkbox" data-k="stroke"> контур для читаемости</label>' +
+            '<button class="gk-tp-apply">Применить</button>' +
+            '<div class="gk-tp-status"></div>' +
+            '<div class="gk-tp-hint">«В стиле» — текст впечатывается в картинку и превращается в цифры дизером (нужна загруженная картинка). «Поверх» — накладывается на готовый ASCII и качается как PNG.<br>Горячие клавиши: <b>T</b> текст · <b>B</b> binary · <b>R</b> рандом · <b>E</b> экспорт</div>';
+          document.body.appendChild(panel);
+
+          var status = panel.querySelector(".gk-tp-status");
+          function setStatus(m) { status.textContent = m || ""; }
+          function syncUI() {
+            panel.querySelector('[data-k="text"]').value = opts.text;
+            panel.querySelector('[data-k="pos"]').value = opts.pos;
+            panel.querySelector('[data-k="sizePct"]').value = opts.sizePct;
+            panel.querySelector(".gk-sz").textContent = opts.sizePct;
+            panel.querySelector('[data-k="stroke"]').checked = !!opts.stroke;
+            seg("mode", opts.mode); seg("color", opts.color);
+          }
+          function seg(k, v) {
+            panel.querySelectorAll('.gk-seg[data-k="' + k + '"] button').forEach(function (b) {
+              b.classList.toggle("gk-on", b.getAttribute("data-v") === v);
+            });
+          }
+          panel.querySelector(".gk-tp-close").onclick = function () { toggle(false); };
+          panel.querySelector('[data-k="text"]').oninput = function (e) { opts.text = e.target.value; saveOpts(); refreshOverlay(); };
+          panel.querySelector('[data-k="pos"]').onchange = function (e) { opts.pos = e.target.value; saveOpts(); refreshOverlay(); };
+          panel.querySelector('[data-k="sizePct"]').oninput = function (e) { opts.sizePct = +e.target.value; panel.querySelector(".gk-sz").textContent = opts.sizePct; saveOpts(); refreshOverlay(); };
+          panel.querySelector('[data-k="stroke"]').onchange = function (e) { opts.stroke = e.target.checked; saveOpts(); refreshOverlay(); };
+          panel.querySelectorAll(".gk-seg").forEach(function (grp) {
+            grp.querySelectorAll("button").forEach(function (b) {
+              b.onclick = function () {
+                var k = grp.getAttribute("data-k"); opts[k] = b.getAttribute("data-v");
+                seg(k, opts[k]); saveOpts(); refreshOverlay();
+              };
+            });
+          });
+          panel.querySelector(".gk-tp-apply").onclick = function () {
+            if (opts.mode === "style") applyStyle(setStatus); else applyOverlay(setStatus);
+          };
+          syncUI();
+          panel._sync = syncUI;
+          return panel;
+        }
+        function toggle(force) {
+          buildPanel();
+          var open = typeof force === "boolean" ? force : !panel.classList.contains("gk-open");
+          panel.classList.toggle("gk-open", open);
+          if (open) { panel._sync(); refreshOverlay(); var ta = panel.querySelector('[data-k="text"]'); ta && ta.focus(); }
+          var btn = document.querySelector(".gk-text-btn");
+          btn && btn.classList.toggle("gk-active", open);
+        }
+
+        /* ---- инжект кнопок в шапку + подсказка хоткеев ---- */
         function inject() {
           var row = document.querySelector(".header-action-row");
-          if (!row || row.querySelector(".gk-binary-btn")) return;
-          var a = document.createElement("a");
-          a.className = "gk-binary-btn" + (window.__GK_BINARY__ ? " gk-active" : "");
-          a.textContent = window.__GK_BINARY__ ? "binary: on" : "binary";
-          /* pathname вместо "/" — работает и локально, и под /goshkryak/ на Pages */
-          a.href = window.__GK_BINARY__ ? location.pathname : location.pathname + "?binary";
-          a.title = "Иллюстрация в стиле бинарного кода (dither, белое на синем)";
-          row.insertBefore(a, row.firstChild);
+          if (row && !row.querySelector(".gk-binary-btn")) {
+            var a = document.createElement("a");
+            a.className = "gk-binary-btn" + (window.__GK_BINARY__ ? " gk-active" : "");
+            a.textContent = window.__GK_BINARY__ ? "binary: on" : "binary";
+            a.href = window.__GK_BINARY__ ? location.pathname : location.pathname + "?binary";
+            a.title = "Иллюстрация в стиле бинарного кода (B)";
+            row.insertBefore(a, row.firstChild);
+          }
+          if (row && !row.querySelector(".gk-text-btn")) {
+            var t = document.createElement("button");
+            t.type = "button";
+            t.className = "gk-binary-btn gk-text-btn";
+            t.textContent = "text";
+            t.title = "Наложить текст (T)";
+            t.onclick = function () { toggle(); };
+            row.insertBefore(t, row.firstChild);
+          }
+          if (document.body && !document.querySelector(".gk-hotkey-hint")) {
+            var h = document.createElement("div");
+            h.className = "gk-hotkey-hint";
+            h.innerHTML = "<b>T</b> текст · <b>B</b> binary · <b>R</b> рандом · <b>E</b> экспорт";
+            document.body.appendChild(h);
+          }
         }
-        new MutationObserver(inject).observe(document.documentElement, {
-          childList: true,
-          subtree: true
-        });
+        new MutationObserver(inject).observe(document.documentElement, { childList: true, subtree: true });
         document.addEventListener("DOMContentLoaded", inject);
+
+        /* ---- горячие клавиши ---- */
+        function clickByText(txt) {
+          var b = [].slice.call(document.querySelectorAll("button")).find(function (x) {
+            return x.textContent.trim().toUpperCase() === txt;
+          });
+          b && b.click();
+        }
+        document.addEventListener("keydown", function (e) {
+          if (e.metaKey || e.ctrlKey || e.altKey) return;
+          var tag = (e.target.tagName || "").toLowerCase();
+          if (tag === "input" || tag === "textarea" || tag === "select" || e.target.isContentEditable) return;
+          switch (e.key.toLowerCase()) {
+            case "b": location.href = window.__GK_BINARY__ ? location.pathname : location.pathname + "?binary"; break;
+            case "t": e.preventDefault(); toggle(); break;
+            case "r": clickByText("RANDOM"); break;
+            case "e": clickByText("EXPORT"); break;
+          }
+        });
       })();
     </script>
 
