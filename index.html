@@ -275,11 +275,24 @@
         background: var(--gk-bg-2) !important;
       }
 
-      /* ---- Скроллбары ---- */
-      .controls-panel::-webkit-scrollbar { width: 6px; }
-      .controls-panel::-webkit-scrollbar-track { background: transparent; }
-      .controls-panel::-webkit-scrollbar-thumb { background: var(--gk-line2); }
-      .controls-panel::-webkit-scrollbar-thumb:hover { background: var(--gk-dim); }
+      /* ---- Скролл настроек: шире зона, видимый бегунок, плавно ---- */
+      .controls-panel {
+        scroll-behavior: smooth;
+        overscroll-behavior: contain;
+        scrollbar-gutter: stable;
+        padding-bottom: 2.5rem !important;   /* воздух под последней настройкой */
+      }
+      .controls-panel::-webkit-scrollbar { width: 14px; }
+      .controls-panel::-webkit-scrollbar-track { background: var(--gk-bg); }
+      .controls-panel::-webkit-scrollbar-thumb {
+        background: var(--gk-line2);
+        border: 4px solid var(--gk-bg);   /* видимый, но с полями — легче попасть */
+        border-radius: 0;
+        min-height: 48px;                 /* бегунок не крошечный */
+      }
+      .controls-panel:hover::-webkit-scrollbar-thumb { background: var(--gk-dim); }
+      /* Firefox */
+      .controls-panel { scrollbar-width: auto; scrollbar-color: var(--gk-dim) var(--gk-bg); }
 
       /* ---- BINARY MODE кнопка в хедере ---- */
       .gk-binary-btn {
